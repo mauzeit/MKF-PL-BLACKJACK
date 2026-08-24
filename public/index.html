@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#000000" />
+<meta name="description" content="Live leaderboard for the MKF PL Blackjack sweepstake — four Premier League players, twenty-one goals." />
+<title>MKF PL BLACKJACK</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=JetBrains+Mono:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="ticker" id="ticker">P601 BLACKJACK — --:--:--</div>
+
+<header class="hero">
+  <h1>MKF<br>PL BLACKJACK</h1>
+  <p class="season">26/27 SEASON</p>
+  <p class="tagline">FOUR PLAYERS. TWENTY-ONE GOALS. DON'T GO BUST.</p>
+</header>
+
+<nav class="filters" id="filters">
+  <button class="filter-btn active" data-filter="all">SHOW ALL</button>
+  <button class="filter-btn" data-filter="in">STILL IN</button>
+  <button class="filter-btn" data-filter="bust">BUST</button>
+  <button class="filter-btn" data-filter="four">4 SCORERS</button>
+  <button class="filter-btn" data-filter="needs">NEEDS SCORERS</button>
+</nav>
+
+<p class="legend">! DOUBTFUL &nbsp;·&nbsp; × INJURED OR OUT &nbsp;·&nbsp; GREY = YET TO SCORE &nbsp;·&nbsp; TAP A ROW FOR THE REASON</p>
+
+<main>
+  <table class="board">
+    <thead>
+      <tr>
+        <th class="col-num">#</th>
+        <th class="col-manager">MANAGER</th>
+        <th class="col-picks">PICKS &amp; GOALS</th>
+        <th class="col-tot">TOT</th>
+        <th class="col-to21">TO 21</th>
+        <th class="col-scr">SCR</th>
+        <th class="col-status">STATUS</th>
+      </tr>
+    </thead>
+    <tbody id="board-body">
+      <tr><td colspan="7" class="loading">Loading live data from the official Fantasy Premier League API…</td></tr>
+    </tbody>
+  </table>
+</main>
+
+<div class="modal-backdrop" id="modal-backdrop">
+  <div class="modal" id="modal-content"></div>
+</div>
+
+<section class="rules">
+  <h2>▶ THE RULES</h2>
+  <ol>
+    <li>Pick <strong>4 Premier League players</strong>, any position, any club.</li>
+    <li>Aim for an aggregate of <strong>21 league goals</strong>. Cup goals and own goals count for nothing.</li>
+    <li>You are <strong>only eligible to win if all 4 of your players score at least once</strong>.</li>
+    <li>The moment you go <strong>over 21</strong>, you are eliminated.</li>
+    <li>100% of the pot goes to whoever finishes on 21, or the next closest score below it — with 4 different goalscorers.</li>
+    <li>If several finish level on the best score, the pot is split equally.</li>
+    <li>No transfers, no changes. Injuries and moves are part of the game.</li>
+    <li>The official Fantasy Premier League site settles any contentious goal — and is the source of every number on this page.</li>
+  </ol>
+</section>
+
+<footer>
+  <button id="refresh-btn">REFRESH</button>
+  <span id="updated-at"></span>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
