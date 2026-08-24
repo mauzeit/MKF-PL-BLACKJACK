@@ -4,8 +4,10 @@
   --dim:#8a8a8a;
   --line:#2a2a2a;
   --green:#3ddc73;
+  --cyan:#4dd8ff;
   --red:#ff4d4d;
   --amber:#ffb020;
+  --magenta:#ff5ad1;
   --grey:#555;
   --mono: 'JetBrains Mono', ui-monospace, monospace;
   --display: 'Archivo Black', sans-serif;
@@ -24,13 +26,18 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);font-family:va
   color:var(--dim);
 }
 
-.hero{ text-align:center; padding:40px 16px 20px; }
+.hero{ text-align:center; padding:36px 16px 18px; }
+.crest{
+  width:64px; height:64px; image-rendering:pixelated; margin:0 auto 14px;
+  display:block;
+}
 .hero h1{
   font-family:var(--display);
-  font-size:clamp(28px, 7vw, 52px);
+  font-size:clamp(22px, 6vw, 42px);
   line-height:1.05;
   margin:0 0 10px;
   letter-spacing:-.01em;
+  white-space:nowrap;
 }
 .season{
   font-weight:800; letter-spacing:.3em; color:var(--green);
@@ -40,10 +47,43 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);font-family:va
   color:var(--dim); font-size:13px; letter-spacing:.06em; margin:0;
 }
 
-.filters{
-  display:flex; flex-wrap:wrap; gap:8px; justify-content:center;
-  padding:24px 16px 8px;
+/* ---- stats bar ---- */
+.stats-bar{
+  display:grid; grid-template-columns:repeat(5, 1fr); gap:0;
+  max-width:1100px; margin:28px auto 0; border:1px solid var(--line);
+  border-bottom:none;
 }
+.stat{
+  padding:16px 14px; border-right:1px solid var(--line); border-bottom:1px solid var(--line);
+}
+.stat:last-child{ border-right:none; }
+.stat-label{ font-size:10.5px; letter-spacing:.12em; color:var(--dim); margin-bottom:8px; }
+.stat-value{ font-size:26px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1; }
+.stat-value.goals{ color:var(--green); }
+.stat-value.stillin{ color:var(--cyan); }
+.stat-value.on21{ color:var(--fg); }
+.stat-value.fourscorers{ color:var(--magenta); }
+.stat-value.leader{ color:var(--fg); font-size:18px; }
+.stat-sub{ font-size:10.5px; color:var(--grey); margin-top:6px; }
+
+@media (max-width:700px){
+  .stats-bar{ grid-template-columns:repeat(2, 1fr); }
+}
+
+/* ---- controls: search + filters ---- */
+.controls{
+  max-width:1100px; margin:0 auto; padding:20px 16px 8px;
+  display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between;
+}
+#search{
+  font-family:var(--mono); font-size:12.5px; letter-spacing:.03em;
+  background:#0a0a0a; color:var(--fg); border:1px solid var(--line);
+  padding:9px 12px; border-radius:2px; min-width:220px; flex:1 1 220px;
+}
+#search::placeholder{ color:var(--grey); }
+#search:focus{ outline:none; border-color:var(--fg); }
+
+.filters{ display:flex; flex-wrap:wrap; gap:8px; }
 .filter-btn{
   font-family:var(--mono); font-weight:600; font-size:11px; letter-spacing:.08em;
   background:transparent; color:var(--dim); border:1px solid var(--line);
@@ -52,23 +92,45 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);font-family:va
 .filter-btn.active{ background:var(--fg); color:var(--bg); border-color:var(--fg); }
 .filter-btn:hover{ border-color:var(--fg); color:var(--fg); }
 
+/* ---- tabs ---- */
+.tabs{
+  max-width:1100px; margin:20px auto 0; padding:0 16px;
+  display:flex; gap:0; border-bottom:1px solid var(--line);
+}
+.tab-btn{
+  font-family:var(--display); font-size:13px; letter-spacing:.04em;
+  background:transparent; color:var(--dim); border:none; border-bottom:2px solid transparent;
+  padding:12px 20px; cursor:pointer; margin-bottom:-1px;
+}
+.tab-btn.active{ color:var(--fg); border-bottom-color:var(--green); }
+.tab-btn:hover{ color:var(--fg); }
+
+.pace-banner{
+  max-width:1100px; margin:14px auto 0; padding:12px 16px; color:var(--dim);
+  font-size:11.5px; line-height:1.6; text-align:center;
+  border:1px dashed var(--line); border-radius:2px;
+  display:none;
+}
+.pace-banner.visible{ display:block; }
+
 .legend{
   text-align:center; color:var(--grey); font-size:10.5px; letter-spacing:.03em;
-  padding:6px 16px 20px; margin:0;
+  padding:14px 16px 16px; margin:0;
 }
 
-main{ padding:0 12px 20px; max-width:920px; margin:0 auto; }
+main{ padding:0 12px 20px; max-width:1100px; margin:0 auto; }
 
 table.board{ width:100%; border-collapse:collapse; font-size:13px; }
 .board thead th{
   text-align:left; font-size:10.5px; letter-spacing:.1em; color:var(--dim);
   border-bottom:1px solid var(--line); padding:10px 8px; font-weight:600;
 }
-.col-num, .col-tot, .col-to21, .col-scr{ text-align:center; }
+.col-num, .col-tot, .col-to21, .col-scr, .col-pace, .col-proj, .col-bustgw{ text-align:center; }
 .board tbody tr{ border-bottom:1px solid var(--line); cursor:pointer; }
 .board tbody tr:hover{ background:#0a0a0a; }
 .board tbody td{ padding:12px 8px; vertical-align:middle; }
 .board tbody td.loading{ text-align:center; color:var(--dim); padding:40px 8px; }
+.board tbody tr.hidden-row{ display:none; }
 
 .rank{ color:var(--dim); font-variant-numeric:tabular-nums; }
 .leading .rank{ color:var(--green); }
@@ -87,6 +149,7 @@ table.board{ width:100%; border-collapse:collapse; font-size:13px; }
 .pick-chip .flag.doubtful{ color:var(--amber); }
 .pick-chip .flag.out{ color:var(--red); }
 .pick-chip.notfound{ color:var(--red); border-color:var(--red); }
+.pick-chip.hit{ border-color:var(--fg); }
 
 .tot, .to21, .scr{
   text-align:center; font-variant-numeric:tabular-nums; font-weight:800; font-size:15px;
@@ -102,6 +165,22 @@ table.board{ width:100%; border-collapse:collapse; font-size:13px; }
 .status-badge.bust{ color:var(--red); border:1px solid var(--red); }
 .status-badge.needs{ color:var(--dim); border:1px solid var(--line); }
 .status-badge.leading{ background:var(--green); color:#000; border:1px solid var(--green); }
+
+/* pace table */
+.pace-value{ text-align:center; font-weight:800; font-variant-numeric:tabular-nums; }
+.pace-badge{
+  display:inline-block; font-size:10.5px; font-weight:800; letter-spacing:.08em;
+  padding:4px 8px; border-radius:2px; white-space:nowrap;
+}
+.pace-badge.ahead{ color:var(--green); border:1px solid var(--green); }
+.pace-badge.on{ color:var(--cyan); border:1px solid var(--cyan); }
+.pace-badge.behind{ color:var(--amber); border:1px solid var(--amber); }
+.pace-badge.bust{ color:var(--red); border:1px solid var(--red); }
+.pace-badge.no-data{ color:var(--grey); border:1px solid var(--line); }
+.proj-total{ text-align:center; font-variant-numeric:tabular-nums; }
+.bustgw-cell{ text-align:center; font-variant-numeric:tabular-nums; }
+.bustgw-cell.slow{ color:var(--red); }
+.bustgw-cell.bustgw{ color:var(--amber); }
 
 .modal-backdrop{
   display:none; position:fixed; inset:0; background:rgba(0,0,0,.75);

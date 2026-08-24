@@ -5,8 +5,10 @@ const fs = require("fs");
 const app = express();
 const PORT = process.env.PORT || 3000;
 const TARGET = 21;
+const TOTAL_GAMEWEEKS = 38;
 const CACHE_MS = 3 * 60 * 1000; // refresh live data every 3 minutes
 const FPL_BOOTSTRAP = "https://fantasy.premierleague.com/api/bootstrap-static/";
+const FPL_FIXTURES = "https://fantasy.premierleague.com/api/fixtures/";
 
 const { buildIndex, matchPlayer } = require("./lib/match");
 
@@ -16,18 +18,69 @@ const managers = JSON.parse(
 
 // ---------- FPL data cache ----------
 
-let cache = { at: 0, index: null, raw: null };
+let cache = { at: 0, index: null, raw: null, gwProgress: null };
 
-async function getIndex() {
-  if (cache.index && Date.now() - cache.at < CACHE_MS) return cache.index;
-  const res = await fetch(FPL_BOOTSTRAP, {
-    headers: { "User-Agent": "Mozilla/5.0 (MKF-PL-Blackjack)" },
-  });
-  if (!res.ok) throw new Error(`FPL API ${res.status}`);
-  const json = await res.json();
-  const index = buildIndex(json.elements);
-  cache = { at: Date.now(), index, raw: json };
-  return index;
+const FPL_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+  Accept: "application/json, text/plain, */*",
+  "Accept-Language": "en-GB,en;q=0.9",
+  Referer: "https://fantasy.premierleague.com/",
+};
+
+async function fetchWithTimeout(url, opts = {}, ms = 10000) {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { ...opts, signal: controller.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// Fraction of the season played so far, counted in gameweeks (e.g. 0.9 of 38):
+// fully finished gameweeks, plus the fraction of fixtures completed within
+// whichever gameweek is currently in progress.
+function computeGwProgress(events, fixtures) {
+  const finishedEvents = events.filter((e) => e.finished).length;
+  const current = events.find((e) => e.is_current) || events.find((e) => e.is_next);
+  let partial = 0;
+  if (current && !current.finished) {
+    const gwFixtures = fixtures.filter((f) => f.event === current.id);
+    if (gwFixtures.length) {
+      const done = gwFixtures.filter((f) => f.finished).length;
+      partial = done / gwFixtures.length;
+    }
+  }
+  const played = finishedEvents + partial;
+  return { played: Math.round(played * 100) / 100, currentEvent: current ? current.id : null };
+}
+
+async function getData() {
+  const isFresh = cache.index && Date.now() - cache.at < CACHE_MS;
+  if (isFresh) return cache;
+
+  try {
+    const [bootRes, fixRes] = await Promise.all([
+      fetchWithTimeout(FPL_BOOTSTRAP, { headers: FPL_HEADERS }, 10000),
+      fetchWithTimeout(FPL_FIXTURES, { headers: FPL_HEADERS }, 10000),
+    ]);
+    if (!bootRes.ok) throw new Error(`FPL bootstrap API ${bootRes.status}`);
+    if (!fixRes.ok) throw new Error(`FPL fixtures API ${fixRes.status}`);
+    const json = await bootRes.json();
+    const fixtures = await fixRes.json();
+    const index = buildIndex(json.elements);
+    const gwProgress = computeGwProgress(json.events, fixtures);
+    cache = { at: Date.now(), index, raw: json, gwProgress };
+    return cache;
+  } catch (err) {
+    if (cache.index) {
+      console.error("FPL fetch failed, serving stale cache:", err.message);
+      return cache;
+    }
+    throw err;
+  }
 }
 
 function statusReason(p) {
@@ -39,7 +92,10 @@ function statusReason(p) {
 }
 
 async function buildLeaderboard() {
-  const index = await getIndex();
+  const { index, gwProgress } = await getData();
+  const gwPlayed = gwProgress ? gwProgress.played : 0;
+  const parRate = TARGET / TOTAL_GAMEWEEKS; // goals per gameweek to land exactly on 21
+  const parNow = Math.round(parRate * gwPlayed * 100) / 100;
   const debug = [];
 
   const rows = managers.map((m) => {
@@ -74,6 +130,30 @@ async function buildLeaderboard() {
     const allFourScored = scorers === 4;
     const toTarget = bust ? null : TARGET - total;
 
+    // ---- pace ----
+    const rate = gwPlayed > 0 ? total / gwPlayed : 0; // goals per gameweek so far
+    const projectedTotal = gwPlayed > 0 ? Math.round(rate * TOTAL_GAMEWEEKS * 10) / 10 : null;
+    let bustGw = null; // gameweek number projected to cross 21
+    let gwsTo21 = null; // gameweeks needed to reach 21 at current rate
+    let paceTooSlow = false;
+    if (rate > 0) {
+      const gwToHit21 = TARGET / rate;
+      if (gwToHit21 <= TOTAL_GAMEWEEKS) {
+        bustGw = Math.ceil(gwToHit21);
+      } else {
+        gwsTo21 = Math.round(gwToHit21 * 10) / 10;
+        paceTooSlow = true;
+      }
+    }
+    const diff = gwPlayed > 0 ? Math.round((total - parNow) * 100) / 100 : null;
+    let paceStatus = "no-data";
+    if (bust) paceStatus = "bust";
+    else if (gwPlayed > 0) {
+      if (Math.abs(diff) < 0.5) paceStatus = "on";
+      else if (diff > 0) paceStatus = "ahead";
+      else paceStatus = "behind";
+    }
+
     return {
       manager: m.manager,
       picks,
@@ -83,17 +163,58 @@ async function buildLeaderboard() {
       bust,
       allFourScored,
       eligible: allFourScored && !bust,
+      pace: {
+        status: paceStatus,
+        diffFromPar: diff,
+        projectedTotal,
+        bustGw,
+        gwsTo21,
+        paceTooSlow,
+      },
     };
   });
 
-  // ranking: eligible (4 scorers, not bust) closest to 21 wins; ties split
+  // ranking badge for the ACTUAL table: highest total among 4-scorer, non-bust entries
   const eligible = rows.filter((r) => r.eligible);
-  const bestTotal = eligible.length ? Math.max(...eligible.map((r) => r.total)) : null;
+  const bestEligibleTotal = eligible.length ? Math.max(...eligible.map((r) => r.total)) : null;
   rows.forEach((r) => {
-    r.leading = r.eligible && r.total === bestTotal;
+    r.leading = r.eligible && r.total === bestEligibleTotal;
   });
 
-  return { rows, updated: new Date().toISOString(), debug };
+  // header stat: top total among anyone not yet bust, regardless of 4-scorer eligibility
+  const notBust = rows.filter((r) => !r.bust);
+  let topManager = null;
+  if (notBust.length) {
+    topManager = notBust.reduce((best, r) => {
+      if (!best) return r;
+      if (r.total !== best.total) return r.total > best.total ? r : best;
+      return r.scorers > best.scorers ? r : best;
+    }, null);
+  }
+
+  const summary = {
+    managerCount: rows.length,
+    totalGoals: rows.reduce((s, r) => s + r.total, 0),
+    stillIn: rows.filter((r) => !r.bust).length,
+    bustCount: rows.filter((r) => r.bust).length,
+    on21: rows.filter((r) => !r.bust && r.total === TARGET).length,
+    fourScorers: eligible.length,
+    leader: topManager ? { manager: topManager.manager, total: topManager.total } : null,
+  };
+
+  return {
+    rows,
+    updated: new Date().toISOString(),
+    debug,
+    summary,
+    season: {
+      totalGameweeks: TOTAL_GAMEWEEKS,
+      gwPlayed,
+      parRate: Math.round(parRate * 1000) / 1000,
+      parNow,
+      pctPlayed: Math.round((gwPlayed / TOTAL_GAMEWEEKS) * 1000) / 10,
+    },
+  };
 }
 
 // ---------- routes ----------
@@ -103,7 +224,13 @@ app.use(express.static(path.join(__dirname, "public")));
 app.get("/api/leaderboard", async (req, res) => {
   try {
     const data = await buildLeaderboard();
-    res.json({ rows: data.rows, updated: data.updated, target: TARGET });
+    res.json({
+      rows: data.rows,
+      updated: data.updated,
+      target: TARGET,
+      summary: data.summary,
+      season: data.season,
+    });
   } catch (err) {
     console.error(err);
     res.status(502).json({ error: "Could not load live FPL data", detail: String(err) });
